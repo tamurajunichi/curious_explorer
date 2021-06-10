@@ -46,11 +46,13 @@ def add_on_policy_mc(transitions):
 if __name__ == "__main__":
 	
 	# tensor-board
+	# terminalでtensorboard --logdir ./runsを打つとlocalhostのアドレスが出てくるので、webブラウザで結果を見ることができる
 	writer = SummaryWriter()
 
 	seed = 0
 	save_model = True
 	start_timesteps = 1000
+	# ネットワークのトレーニングする際にサンプリングするバッチサイズ
 	batch_size = 256
 
 	file_name = "DDPG_" + "HFO_" + str(seed)
@@ -68,17 +70,23 @@ if __name__ == "__main__":
 	np.random.seed(seed)
 	
 
+	# アクションの最大と最小
 	max_a = [1,1,1,100,180,180,100,180]
 	min_a = [-1,-1,-1,0,-180,-180,0,-180]
 	state_dim = 59
 	action_dim = len(max_a)
 
+	# DDPGのインスタンス化
 	policy = DDPG.DDPG(state_dim, action_dim, max_a, min_a)
+	# Curious Explorerのインスタンス化
+	# Curious Explorationの論文：https://arxiv.org/abs/2105.00499
 	explore = explorer.explorer(state_dim, action_dim, max_a, min_a)
 
 
+	# Experience Replayで使用するリプレイバッファのインスタンス化
 	replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
+	# もらえる報酬がゴール時のみのタスク（スパース報酬）
 	env = gym.make('Soccer-v0')
 	state, done = env.reset(), False
 	episode_reward = 0
@@ -89,22 +97,33 @@ if __name__ == "__main__":
 	high_eval = 0
 	timestep = 0
 	evaluation_num = 0
+	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
 	dec = 1
+	# exp_reward重み付けのハイパーパラメータ
+	ro = 1
 	while True:
+		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		eps_rnd = random.random()
 		if eps_rnd<dec or timestep < start_timesteps:
 			action = explore.select_action(state)
 		else:
 			action =policy.select_action(state)
+
+		# action[0]の0~4までが離散アクション,パラメータ：DASH[1],[2],TURN[3],KICK[4],[5]
 		next_state, reward, done ,info= env.step(suit_action(action))
+		# アニーリング
 		if reward > 0 and dec > 0.1:
 			print('decreased it')
 			dec -= 0.001
 
+		# CEでの予測結果
 		predicted_state = explore.predict(state, action)
 
+		# doneを数値化
 		done_bool = float(done)
+		# exp_reward = ||(St+1, Rt+1) - P(St, at)||^2
 		exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
+		exp_reward = ro * exp_reward
 		transitions.append({"state" : state,
 							"action" : action,
 							"next_state" : next_state,
@@ -120,7 +139,8 @@ if __name__ == "__main__":
 		timestep += 1
 		episode_timesteps+=1
 
-		if done: 
+		# Episode終了
+		if done:
 			add_on_policy_mc(transitions)
 			for i in transitions:
 				replay_buffer.add(i["state"], i["action"], i["next_state"],
