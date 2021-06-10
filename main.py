@@ -26,13 +26,17 @@ def evaluation(env, policy):
 	
 	return total_reward/200
 		
-
+# 
 def suit_action(action):
 	ret_act = np.zeros(6)
 	ret_act[0] = np.argmax(action[0:3])
 	ret_act[1:6] = action[3:8]
 	return ret_act
 
+# 詳しくはCEの論文と
+# onpolicy vs offpolicyの論文：https://www.cs.utexas.edu/~pstone/Papers/bib2html-links/DeepRL16-hausknecht.pdf
+# on_policy_mc = Σ^T_i=t(γ^(i-t)*r_i)
+# mixing_update: y = beta*on_policy_mc + (1-beta)*q_learning
 def add_on_policy_mc(transitions):
 	r = 0
 	exp_r = 0
@@ -141,6 +145,7 @@ if __name__ == "__main__":
 
 		# Episode終了
 		if done:
+			# モンテカルロアップデートで使うものを以下でtransitionに付け加える
 			add_on_policy_mc(transitions)
 			for i in transitions:
 				replay_buffer.add(i["state"], i["action"], i["next_state"],
