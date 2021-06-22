@@ -41,13 +41,15 @@ class DDPG_EXPLORER(object):
 
 
 	def train(self,replay_buffer, batch_size=64):
+		# TODO: actionにパラメータ入ってる？ → MP-DQNの実装と違って離散とパラメータが一気位に同じ層として出力される
 		state,action, next_state, reward, ex_reward, n_step, ex_n_step, not_done = replay_buffer.sample(batch_size)
-		
-		target_Q = self.critic_target(next_state,self.actor_target(next_state))
-		target_Q = ex_reward + (not_done * self.discount * target_Q).detach()
-		current_Q = self.critic(state, action)
-		beta = 0.2
-		mixed_q = beta*ex_n_step + (1-beta)*target_Q
+		with torch.no_grad():
+			target_Q = self.critic_target(next_state,self.actor_target(next_state))
+			target_Q = ex_reward + (not_done * self.discount * target_Q).detach()
+			current_Q = self.critic(state, action)
+			beta = 0.2
+			# TODO: on_policy_target = n_step+ex_n_stepなのでは?
+			mixed_q = beta*(n_step+ex_n_step) + (1-beta)*target_Q
 		critic_loss = F.mse_loss(current_Q, mixed_q)
 
 		self.critic_optimizer.zero_grad()
@@ -55,7 +57,8 @@ class DDPG_EXPLORER(object):
 		torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 10)
 		self.critic_optimizer.step()
 
-		current_a = Variable(self.actor(state))
+		with torch.no_grad():
+			current_a = Variable(self.actor(state))
 		current_a.requires_grad = True
 
 		actor_loss = self.critic(state, current_a).mean()

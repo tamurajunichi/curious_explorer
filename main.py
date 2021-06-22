@@ -3,6 +3,7 @@ import torch
 import os
 import explorer
 import utils
+import time
 import DDPG
 import random
 import gym
@@ -14,7 +15,7 @@ def evaluation(env, policy):
 	state, done = env.reset(), False
 	total_reward = 0
 	eps = 0
-	while eps < 200:
+	while eps < 1000:
 		action = policy.select_action(state)
 		next_state, reward, done , _= env.step(suit_action(action))
 		state = next_state
@@ -24,9 +25,9 @@ def evaluation(env, policy):
 			state, done = env.reset(), False
 			eps += 1
 	
-	return total_reward/200
+	return total_reward/1000
 		
-# 
+# ActorのNNから得られるアクションを環境で扱えるように変換
 def suit_action(action):
 	ret_act = np.zeros(6)
 	ret_act[0] = np.argmax(action[0:3])
@@ -41,6 +42,7 @@ def add_on_policy_mc(transitions):
 	r = 0
 	exp_r = 0
 	dis = 0.99
+	# range(start, stop, step)
 	for i in range(len(transitions)-1,-1,-1):
 		r = transitions[i]["reward"]+dis*r
 		transitions[i]["n_step"] = r
@@ -104,7 +106,7 @@ if __name__ == "__main__":
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
 	dec = 1
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 1
+	ro = 0.01
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		eps_rnd = random.random()
@@ -116,9 +118,9 @@ if __name__ == "__main__":
 		# action[0]の0~4までが離散アクション,パラメータ：DASH[1],[2],TURN[3],KICK[4],[5]
 		next_state, reward, done ,info= env.step(suit_action(action))
 		# アニーリング
-		if reward > 0 and dec > 0.1:
-			print('decreased it')
-			dec -= 0.001
+		#if reward > 0 and dec > 0.1:
+		#	print('decreased it')
+		#	dec -= 0.001
 
 		# CEでの予測結果
 		predicted_state = explore.predict(state, action)
@@ -128,6 +130,9 @@ if __name__ == "__main__":
 		# exp_reward = ||(St+1, Rt+1) - P(St, at)||^2
 		exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
 		exp_reward = ro * exp_reward
+		# CEの報酬をCLIPする
+		if exp_reward > 0.5:
+			exp_reward = 0.5
 		transitions.append({"state" : state,
 							"action" : action,
 							"next_state" : next_state,
@@ -147,20 +152,25 @@ if __name__ == "__main__":
 		if done:
 			# モンテカルロアップデートで使うものを以下でtransitionに付け加える
 			add_on_policy_mc(transitions)
+			# transitionをすべてreplay bufferへいれる
 			for i in transitions:
 				replay_buffer.add(i["state"], i["action"], i["next_state"],
 									i["reward"], i["exp_reward"], i["n_step"],
 									i["exp_n_step"], i["done"])
+			# tensorboard用の変数
 			predictor_loss = 0
+			# timestepが十分な探索を超えたらトレーニングを始める
 			if timestep >= start_timesteps:
 				for i in range(int(episode_timesteps/10)):
 					policy.train(replay_buffer, batch_size)
 					predictor_loss+= explore.train(replay_buffer,batch_size)[1]
 
+			# tensorboard書き込み
 			writer.add_scalar("reward/episode", episode_reward, episode_num)
 			writer.add_scalar("predictor_loss/episode", predictor_loss, episode_num)
 			writer.add_scalar("exp_reward/episode",exp_episode_reward,episode_num)
 
+			# エピソード終了のリセット
 			state, done = env.reset(), False
 			episode_reward = 0
 			exp_episode_reward =0
@@ -168,8 +178,10 @@ if __name__ == "__main__":
 			episode_timesteps = 0
 			episode_num += 1 
 
-			if (episode_num+1) % 500 == 0 :
+			# エピソードが50000で評価をする
+			if (episode_num+1) % 200000 == 0 :
 				evaluation_num += 1
+				# 1000エピソードの評価、1000エピソードの平均報酬を出力
 				current_eval = evaluation(env, policy)
 				print('evaluation : ', current_eval)
 				writer.add_scalar("current_eval/test_number", current_eval, evaluation_num)
@@ -178,5 +190,7 @@ if __name__ == "__main__":
 					high_eval = current_eval
 					print('saved in ',episode_num)
 				state, done = env.reset(), False
-		
+				env.close()
+				time.sleep(3)
+				break
 	writer.flush()
