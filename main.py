@@ -106,7 +106,7 @@ if __name__ == "__main__":
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
 	dec = 1
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 0.01
+	ro = 1
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		eps_rnd = random.random()
@@ -131,8 +131,8 @@ if __name__ == "__main__":
 		exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
 		exp_reward = ro * exp_reward
 		# CEの報酬をCLIPする
-		if exp_reward > 0.5:
-			exp_reward = 0.5
+		#if exp_reward > 0.5:
+		#	exp_reward = 0.5
 		transitions.append({"state" : state,
 							"action" : action,
 							"next_state" : next_state,
@@ -145,6 +145,7 @@ if __name__ == "__main__":
 		episode_reward += reward
 		exp_episode_reward +=  exp_reward
 
+		writer.add_scalar("exp_reward/timestep",exp_reward,timestep)
 		timestep += 1
 		episode_timesteps+=1
 
