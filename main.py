@@ -106,7 +106,7 @@ if __name__ == "__main__":
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
 	dec = 1
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 1
+	ro = 0.001
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		eps_rnd = random.random()
@@ -145,6 +145,7 @@ if __name__ == "__main__":
 		episode_reward += reward
 		exp_episode_reward +=  exp_reward
 
+		# timestepごとのintrinsic rewards
 		writer.add_scalar("exp_reward/timestep",exp_reward,timestep)
 		timestep += 1
 		episode_timesteps+=1
@@ -158,18 +159,24 @@ if __name__ == "__main__":
 				replay_buffer.add(i["state"], i["action"], i["next_state"],
 									i["reward"], i["exp_reward"], i["n_step"],
 									i["exp_n_step"], i["done"])
-			# tensorboard用の変数
-			predictor_loss = 0
+			# tensorboard用辞書の初期化
+			debug_dict = {"predictor_loss":0,"current_q":0,"mixed_q":0,"critic_loss":0}
 			# timestepが十分な探索を超えたらトレーニングを始める
 			if timestep >= start_timesteps:
 				for i in range(int(episode_timesteps/10)):
 					policy.train(replay_buffer, batch_size)
-					predictor_loss+= explore.train(replay_buffer,batch_size)[1]
+					critic_q_and_loss, predictor_loss = explore.train(replay_buffer,batch_size)
+					debug_dict["predictor_loss"] += predictor_loss
+					debug_dict["current_q"] += critic_q_and_loss[0]
+					debug_dict["mixed_q"] += critic_q_and_loss[1]
+					debug_dict["critic_loss"] += critic_q_and_loss[2]
 
-			# tensorboard書き込み
 			writer.add_scalar("reward/episode", episode_reward, episode_num)
-			writer.add_scalar("predictor_loss/episode", predictor_loss, episode_num)
+			writer.add_scalar("predictor_loss/episode", debug_dict["predictor_loss"], episode_num)
 			writer.add_scalar("exp_reward/episode",exp_episode_reward,episode_num)
+			writer.add_scalar("current_q/episode",debug_dict["current_q"], episode_num)
+			writer.add_scalar("mixed_q/episode",debug_dict["mixed_q"], episode_num)
+			writer.add_scalar("critic_loss/episode",debug_dict["critic_loss"], episode_num)
 
 			# エピソード終了のリセット
 			state, done = env.reset(), False

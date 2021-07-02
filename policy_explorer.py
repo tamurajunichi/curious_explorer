@@ -78,6 +78,8 @@ class DDPG_EXPLORER(object):
 		for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
 			target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
+		return [current_Q.mean().item(), mixed_q.mean().item(), critic_loss.item()]
+
 
 	def save(self, filename):
 		torch.save(self.critic.state_dict(), filename + "_critic")
