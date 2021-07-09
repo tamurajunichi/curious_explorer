@@ -104,13 +104,13 @@ if __name__ == "__main__":
 	timestep = 0
 	evaluation_num = 0
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
-	dec = 1
+	# dec = 1
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 0.001
+	ro = 1
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
-		eps_rnd = random.random()
-		if eps_rnd<dec or timestep < start_timesteps:
+		# eps_rnd = random.random()
+		if timestep < start_timesteps:
 			action = explore.select_action(state)
 		else:
 			action =policy.select_action(state)
@@ -186,19 +186,21 @@ if __name__ == "__main__":
 			episode_timesteps = 0
 			episode_num += 1 
 
-			# エピソードが50000で評価をする
-			if (episode_num+1) % 200000 == 0 :
+			# エピソードが10000ごとに評価をする
+			if (episode_num+1) % 10000 == 0 :
 				evaluation_num += 1
-				# 1000エピソードの評価、1000エピソードの平均報酬を出力
 				current_eval = evaluation(env, policy)
 				print('evaluation : ', current_eval)
 				writer.add_scalar("current_eval/test_number", current_eval, evaluation_num)
 				if current_eval > high_eval:
-					policy.save('./models/model')
+					policy.save('./models/policy_model')
+					explore.ddpg.save('./models/exploer_model')
+					explore.predictor.save('./models/predictor')
+					replay_buffer.save('./memory')
 					high_eval = current_eval
 					print('saved in ',episode_num)
 				state, done = env.reset(), False
-				env.close()
-				time.sleep(3)
-				break
+				#env.close()
+				#time.sleep(3)
+				#break
 	writer.flush()
