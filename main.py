@@ -106,7 +106,7 @@ if __name__ == "__main__":
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
 	# dec = 1
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 1
+	ro = 0.001
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		# eps_rnd = random.random()

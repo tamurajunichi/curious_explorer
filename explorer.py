@@ -23,15 +23,16 @@ class explorer(object):
 
 	def select_action(self, state):
 
-		#self.counter += 1
-		#eps_rnd = random.random()
+		self.counter += 1
+		eps_rnd = random.random()
 		#dec = min(max(0.1,1.0 - float(self.counter)*0.00003),1)
-		#
-		#if eps_rnd<dec:
-		#	action = np.random.uniform(self.min_action, self.max_action)
-		#else:
-		#	action = self.ddpg.select_action(state)
-		return self.ddpg.select_action(state)
+		dec = 0.1
+
+		if eps_rnd < dec:
+			action = np.random.uniform(self.min_action, self.max_action)
+		else:
+			action = self.ddpg.select_action(state)
+		return action
 
 	def predict(self, state, action):
 		return self.predictor.predict(state, action)
