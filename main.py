@@ -104,16 +104,16 @@ if __name__ == "__main__":
 	timestep = 0
 	evaluation_num = 0
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
-	# dec = 1
+	dec = 0
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 0.001
+	ro = 0.003
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		# eps_rnd = random.random()
 		if timestep < start_timesteps:
-			action = explore.select_action(state)
+			action = policy.select_action(state)
 		else:
-			action =policy.select_action(state)
+			action, dec = explore.select_action(state)
 
 		# action[0]の0~4までが離散アクション,パラメータ：DASH[1],[2],TURN[3],KICK[4],[5]
 		next_state, reward, done ,info= env.step(suit_action(action))
@@ -147,6 +147,7 @@ if __name__ == "__main__":
 
 		# timestepごとのintrinsic rewards
 		writer.add_scalar("exp_reward/timestep",exp_reward,timestep)
+		writer.add_scalar("dec/timestep",dec, timestep)
 		timestep += 1
 		episode_timesteps+=1
 
@@ -189,17 +190,16 @@ if __name__ == "__main__":
 			# エピソードが10000ごとに評価をする
 			if (episode_num+1) % 10000 == 0 :
 				evaluation_num += 1
-				current_eval = evaluation(env, policy)
+				current_eval = evaluation(env, explore.ddpg)
 				print('evaluation : ', current_eval)
 				writer.add_scalar("current_eval/test_number", current_eval, evaluation_num)
-				if current_eval > high_eval:
-					policy.save('./models/policy_model')
-					explore.ddpg.save('./models/exploer_model')
-					explore.predictor.save('./models/predictor')
-					replay_buffer.save('./memory')
-					high_eval = current_eval
-					print('saved in ',episode_num)
-				state, done = env.reset(), False
+				#if current_eval > high_eval:
+				policy.save('./models/policy_model_{}'.format(episode_num+1))
+				explore.ddpg.save('./models/exploer_model_{}'.format(episode_num+1))
+				explore.predictor.save('./models/predictor_{}'.format(episode_num+1))
+				replay_buffer.save('./memory',episode_num+1)
+				high_eval = current_eval
+				print('saved in ',episode_num)
 				#env.close()
 				#time.sleep(3)
 				#break

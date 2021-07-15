@@ -22,17 +22,14 @@ class explorer(object):
 				self.predictor.train(replay_buffer, batch_size))
 
 	def select_action(self, state):
-
 		self.counter += 1
 		eps_rnd = random.random()
-		#dec = min(max(0.1,1.0 - float(self.counter)*0.00003),1)
-		dec = 0.1
-
+		dec = min(max(0.1,1.0 - float(self.counter)*0.00003),1)
 		if eps_rnd < dec:
 			action = np.random.uniform(self.min_action, self.max_action)
 		else:
 			action = self.ddpg.select_action(state)
-		return action
+		return action, dec
 
 	def predict(self, state, action):
 		return self.predictor.predict(state, action)

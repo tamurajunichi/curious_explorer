@@ -47,15 +47,16 @@ class ReplayBuffer(object):
 			torch.FloatTensor(self.not_done[ind]).to(self.device)
 		)
 	
-	def save(self,folder):
-		f = open(folder+'/params','w')
+	def save(self,folder,episode_num):
+		f = open(folder+'/params_{}'.format(episode_num),'w')
 		f.write(str(self.max_size)+','+str(self.ptr)+','+str(self.size))
 		f.close()
-		np.save(folder+'/state',self.state)
-		np.save(folder+'/action',self.action)
-		np.save(folder+'/next_state',self.next_state)
-		np.save(folder+'/reward',self.reward)
-		np.save(folder+'/not_done',self.not_done)
+		np.save(folder+'/state_{}'.format(episode_num),self.state)
+		np.save(folder+'/action_{}'.format((episode_num)),self.action)
+		np.save(folder+'/next_state_{}'.format(episode_num),self.next_state)
+		np.save(folder+'/reward_{}'.format(episode_num),self.reward)
+		np.save(folder+'/exp_reward_{}'.format(episode_num),self.exp_reward)
+		np.save(folder+'/not_done_{}'.format(episode_num),self.not_done)
 	
 	def load(self,folder):
 		f = open(folder+'/params','r')
