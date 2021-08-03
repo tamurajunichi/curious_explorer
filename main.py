@@ -106,7 +106,7 @@ if __name__ == "__main__":
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
 	dec = 0
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 0.003
+	ro = 1
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		# eps_rnd = random.random()
@@ -124,11 +124,16 @@ if __name__ == "__main__":
 
 		# CEでの予測結果
 		predicted_state = explore.predict(state, action)
+		# RNDでの予測結果
+		rnd_predicted_out, rnd_target_out = explore.predict(state, action)
 
 		# doneを数値化
 		done_bool = float(done)
 		# exp_reward = ||(St+1, Rt+1) - P(St, at)||^2
-		exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
+		# CE
+		# exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
+		# RND
+		exp_reward = np.linalg.norm(rnd_target_out - rnd_predicted_out)
 		exp_reward = ro * exp_reward
 		# CEの報酬をCLIPする
 		#if exp_reward > 0.5:
@@ -166,7 +171,7 @@ if __name__ == "__main__":
 			if timestep >= start_timesteps:
 				for i in range(int(episode_timesteps/10)):
 					policy.train(replay_buffer, batch_size)
-					critic_q_and_loss, predictor_loss = explore.train(replay_buffer,batch_size)
+					critic_q_and_loss, predictor_loss = explore.train(replay_buffer, batch_size)
 					debug_dict["predictor_loss"] += predictor_loss
 					debug_dict["current_q"] += critic_q_and_loss[0]
 					debug_dict["mixed_q"] += critic_q_and_loss[1]
@@ -196,7 +201,11 @@ if __name__ == "__main__":
 				#if current_eval > high_eval:
 				policy.save('./models/policy_model_{}'.format(episode_num+1))
 				explore.ddpg.save('./models/exploer_model_{}'.format(episode_num+1))
-				explore.predictor.save('./models/predictor_{}'.format(episode_num+1))
+				# CE
+				# explore.predictor.save('./models/predictor_{}'.format(episode_num+1))
+				# RND
+				explore.rnd_predictor.save('./models/rnd_predictor_{}'.format(episode_num+1))
+				explore.rnd_target.save('./models/rnd_target_{}'.format(episode_num+1))
 				replay_buffer.save('./memory',episode_num+1)
 				high_eval = current_eval
 				print('saved in ',episode_num)
