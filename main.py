@@ -84,9 +84,11 @@ if __name__ == "__main__":
 
 	# DDPGのインスタンス化
 	policy = DDPG.DDPG(state_dim, action_dim, max_a, min_a)
+	# rndを利用するかどうか、しない場合はCEになる
+	rnd = False
 	# Curious Explorerのインスタンス化
 	# Curious Explorationの論文：https://arxiv.org/abs/2105.00499
-	explore = explorer.explorer(state_dim, action_dim, max_a, min_a)
+	explore = explorer.explorer(state_dim, action_dim, max_a, min_a, rnd=rnd)
 
 
 	# Experience Replayで使用するリプレイバッファのインスタンス化
@@ -106,7 +108,11 @@ if __name__ == "__main__":
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
 	dec = 0
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 1
+	if rnd:
+		ro = 1
+	else:
+		ro = 0.003
+
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		# eps_rnd = random.random()
@@ -122,19 +128,20 @@ if __name__ == "__main__":
 		#	print('decreased it')
 		#	dec -= 0.001
 
-		# CEでの予測結果
-		predicted_state = explore.predict(state, action)
-		# RNDでの予測結果
-		rnd_predicted_out, rnd_target_out = explore.predict(state, action)
+		# exp_reward = ||(St+1, Rt+1) - P(St, at)||^2
+		if rnd:
+			# RNDでの予測結果
+			rnd_predicted_out, rnd_target_out = explore.predict(state, action)
+			exp_reward = np.linalg.norm(rnd_target_out - rnd_predicted_out)
+			exp_reward = ro * exp_reward
+		else:
+			# CEでの予測結果
+			predicted_state = explore.predict(state, action)
+			exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
 
 		# doneを数値化
 		done_bool = float(done)
-		# exp_reward = ||(St+1, Rt+1) - P(St, at)||^2
-		# CE
-		# exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
-		# RND
-		exp_reward = np.linalg.norm(rnd_target_out - rnd_predicted_out)
-		exp_reward = ro * exp_reward
+
 		# CEの報酬をCLIPする
 		#if exp_reward > 0.5:
 		#	exp_reward = 0.5
@@ -201,11 +208,13 @@ if __name__ == "__main__":
 				#if current_eval > high_eval:
 				policy.save('./models/policy_model_{}'.format(episode_num+1))
 				explore.ddpg.save('./models/exploer_model_{}'.format(episode_num+1))
-				# CE
-				# explore.predictor.save('./models/predictor_{}'.format(episode_num+1))
-				# RND
-				explore.rnd_predictor.save('./models/rnd_predictor_{}'.format(episode_num+1))
-				explore.rnd_target.save('./models/rnd_target_{}'.format(episode_num+1))
+				if rnd:
+					# RND
+					explore.rnd_predictor.save('./models/rnd_predictor_{}'.format(episode_num+1))
+					explore.rnd_target.save('./models/rnd_target_{}'.format(episode_num+1))
+				else:
+					# CE
+					explore.predictor.save('./models/predictor_{}'.format(episode_num+1))
 				replay_buffer.save('./memory',episode_num+1)
 				high_eval = current_eval
 				print('saved in ',episode_num)
