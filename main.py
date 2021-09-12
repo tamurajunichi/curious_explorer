@@ -83,7 +83,7 @@ if __name__ == "__main__":
 	action_dim = len(max_a)
 
 	# DDPGのインスタンス化
-	policy = DDPG.DDPG(state_dim, action_dim, max_a, min_a)
+	# policy = DDPG.DDPG(state_dim, action_dim, max_a, min_a)
 	# Curious Explorerのインスタンス化
 	# Curious Explorationの論文：https://arxiv.org/abs/2105.00499
 	explore = explorer.explorer(state_dim, action_dim, max_a, min_a)
@@ -106,14 +106,15 @@ if __name__ == "__main__":
 	# epsilon-greedyをアニーリングする,rewardがもらえて、dec>0.1のときdec-=0.001
 	dec = 0
 	# exp_reward重み付けのハイパーパラメータ
-	ro = 1
+	ro = 0.003
 	while True:
 		# epsilon-greedyを使用するが、Curious Explorationなため常に探索を行う eps_rnd < dec, start_timestepsまでは探索のみを行う
 		# eps_rnd = random.random()
-		if timestep < start_timesteps:
-			action = policy.select_action(state)
-		else:
-			action, dec = explore.select_action(state)
+		#if timestep < start_timesteps:
+		#	action = policy.select_action(state)
+		#else:
+		#	action, dec = explore.select_action(state)
+		action, dec = explore.select_action(state)
 
 		# action[0]の0~4までが離散アクション,パラメータ：DASH[1],[2],TURN[3],KICK[4],[5]
 		next_state, reward, done ,info= env.step(suit_action(action))
@@ -125,16 +126,20 @@ if __name__ == "__main__":
 		# CEでの予測結果
 		predicted_state = explore.predict(state, action)
 		# RNDでの予測結果
-		rnd_predicted_out, rnd_target_out = explore.predict(state, action)
+		# rnd_predicted_out, rnd_target_out = explore.predict(state, action)
 
 		# doneを数値化
 		done_bool = float(done)
+
 		# exp_reward = ||(St+1, Rt+1) - P(St, at)||^2
 		# CE
-		# exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
+		exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
+
 		# RND
-		exp_reward = np.linalg.norm(rnd_target_out - rnd_predicted_out)
+		#exp_reward = np.linalg.norm(rnd_target_out - rnd_predicted_out)
+
 		exp_reward = ro * exp_reward
+
 		# CEの報酬をCLIPする
 		#if exp_reward > 0.5:
 		#	exp_reward = 0.5
@@ -166,23 +171,31 @@ if __name__ == "__main__":
 									i["reward"], i["exp_reward"], i["n_step"],
 									i["exp_n_step"], i["done"])
 			# tensorboard用辞書の初期化
-			debug_dict = {"predictor_loss":0,"current_q":0,"mixed_q":0,"critic_loss":0}
+			debug_dict = {"predictor_loss":0,"current_q_ext":0,"mixed_q_ext":0,"critic_loss_ext":0,"current_q_int":0,"mixed_q_int":0,"critic_loss_int":0,"qval":0}
 			# timestepが十分な探索を超えたらトレーニングを始める
 			if timestep >= start_timesteps:
 				for i in range(int(episode_timesteps/10)):
-					policy.train(replay_buffer, batch_size)
+					# policy.train(replay_buffer, batch_size)
 					critic_q_and_loss, predictor_loss = explore.train(replay_buffer, batch_size)
 					debug_dict["predictor_loss"] += predictor_loss
-					debug_dict["current_q"] += critic_q_and_loss[0]
-					debug_dict["mixed_q"] += critic_q_and_loss[1]
-					debug_dict["critic_loss"] += critic_q_and_loss[2]
+					debug_dict["current_q_ext"] += critic_q_and_loss[0]
+					debug_dict["mixed_q_ext"] += critic_q_and_loss[1]
+					debug_dict["critic_loss_ext"] += critic_q_and_loss[2]
+					debug_dict["current_q_int"] += critic_q_and_loss[3]
+					debug_dict["mixed_q_int"] += critic_q_and_loss[4]
+					debug_dict["critic_loss_int"] += critic_q_and_loss[5]
+					debug_dict["qval"] += critic_q_and_loss[6]
 
 			writer.add_scalar("reward/episode", episode_reward, episode_num)
 			writer.add_scalar("predictor_loss/episode", debug_dict["predictor_loss"], episode_num)
 			writer.add_scalar("exp_reward/episode",exp_episode_reward,episode_num)
-			writer.add_scalar("current_q/episode",debug_dict["current_q"], episode_num)
-			writer.add_scalar("mixed_q/episode",debug_dict["mixed_q"], episode_num)
-			writer.add_scalar("critic_loss/episode",debug_dict["critic_loss"], episode_num)
+			writer.add_scalar("current_q_ext/episode",debug_dict["current_q_ext"], episode_num)
+			writer.add_scalar("current_q_int/episode",debug_dict["current_q_int"], episode_num)
+			writer.add_scalar("mixed_q_ext/episode",debug_dict["mixed_q_ext"], episode_num)
+			writer.add_scalar("mixed_q_int/episode",debug_dict["mixed_q_int"], episode_num)
+			writer.add_scalar("critic_loss_ext/episode",debug_dict["critic_loss_ext"], episode_num)
+			writer.add_scalar("critic_loss_int/episode",debug_dict["critic_loss_int"], episode_num)
+			writer.add_scalar("qval/episode",debug_dict["qval"], episode_num)
 
 			# エピソード終了のリセット
 			state, done = env.reset(), False
@@ -199,13 +212,16 @@ if __name__ == "__main__":
 				print('evaluation : ', current_eval)
 				writer.add_scalar("current_eval/test_number", current_eval, evaluation_num)
 				#if current_eval > high_eval:
-				policy.save('./models/policy_model_{}'.format(episode_num+1))
+				# policy.save('./models/policy_model_{}'.format(episode_num+1))
 				explore.ddpg.save('./models/exploer_model_{}'.format(episode_num+1))
+
 				# CE
-				# explore.predictor.save('./models/predictor_{}'.format(episode_num+1))
+				explore.predictor.save('./models/predictor_{}'.format(episode_num+1))
+
 				# RND
-				explore.rnd_predictor.save('./models/rnd_predictor_{}'.format(episode_num+1))
-				explore.rnd_target.save('./models/rnd_target_{}'.format(episode_num+1))
+				# explore.rnd_predictor.save('./models/rnd_predictor_{}'.format(episode_num+1))
+				# explore.rnd_target.save('./models/rnd_target_{}'.format(episode_num+1))
+
 				replay_buffer.save('./memory',episode_num+1)
 				high_eval = current_eval
 				print('saved in ',episode_num)

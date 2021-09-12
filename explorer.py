@@ -13,20 +13,18 @@ class explorer(object):
 
 		self.ddpg = policy_explorer.DDPG_EXPLORER(state_dim, action_dim, max_action, min_action)
 		# CE
-		# self.predictor = predictor.Predictor(state_dim,action_dim)
+		self.predictor = predictor.Predictor(state_dim,action_dim)
 		# RND
-		self.rnd_predictor = predictor.RND_Predictor(state_dim)
-		self.rnd_target = predictor.RND_Target(state_dim)
+		# self.rnd_predictor = predictor.RND_Predictor(state_dim)
+		# self.rnd_target = predictor.RND_Target(state_dim)
 
 		self.counter = 0
 
 	# TODO: どうやってrnd_targetのoutputをreplay_bufferのbatchを利用して渡す？
 	def train(self, replay_buffer, batch_size=64):
 		# RND
-		return (self.ddpg.train(replay_buffer, batch_size),
-				self.rnd_predictor.train(replay_buffer, self.rnd_target, batch_size))
-		# CE
-		# return (self.ddpg.train(replay_buffer, batch_size),  self.predictor.train(replay_buffer, batch_size))
+		#return (self.ddpg.train(replay_buffer, batch_size),self.rnd_predictor.train(replay_buffer, self.rnd_target, batch_size))
+		return (self.ddpg.train(replay_buffer, batch_size),  self.predictor.train(replay_buffer, batch_size))
 
 	def select_action(self, state):
 		self.counter += 1
@@ -40,6 +38,6 @@ class explorer(object):
 
 	def predict(self, state, action):
 		# RND
-		return self.rnd_predictor.predict(state), self.rnd_target.predict(state)
+		#return self.rnd_predictor.predict(state), self.rnd_target.predict(state)
 		# CE
-		# return self.predictor.predict(state, action)
+		return self.predictor.predict(state, action)

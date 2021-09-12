@@ -45,6 +45,9 @@ def main():
 
     # Load predictor
     predictor_episode_num = 200000
+
+
+
     file_name = 'predictor_{}'.format(predictor_episode_num)
     predictor_model = predictor.Predictor(state_dim, action_dim)
     predictor_model.load(filename=model_folder+file_name)
