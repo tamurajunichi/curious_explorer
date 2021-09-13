@@ -133,11 +133,11 @@ if __name__ == "__main__":
 			# RNDでの予測結果
 			rnd_predicted_out, rnd_target_out = explore.predict(state, action)
 			exp_reward = np.linalg.norm(rnd_target_out - rnd_predicted_out)
-			exp_reward = ro * exp_reward
 		else:
 			# CEでの予測結果
 			predicted_state = explore.predict(state, action)
 			exp_reward = np.linalg.norm(np.concatenate((next_state,np.array([reward])))-predicted_state)
+		exp_reward = ro * exp_reward
 
 		# doneを数値化
 		done_bool = float(done)
